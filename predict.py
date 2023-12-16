@@ -49,10 +49,13 @@ def main():
     elif args.mode==1:
         for name in os.listdir(args.input_path):
             mol_path=os.path.join(args.input_path,name)
-            mol=next(pybel.readfile(args.file_format,mol_path))
-            o_path=os.path.join(args.output_path,os.path.basename(args.mol_path))
+            o_path=os.path.join(args.output_path,os.path.basename(mol_path))
             if not os.path.exists(o_path):
                 os.mkdir(o_path)
+            else:
+                print("Already ran. Skipping...")
+                continue
+            mol=next(pybel.readfile(args.file_format,mol_path))
             model.save_pocket_mol2(mol,o_path,args.output_format)
 if __name__=='__main__':
     main()
