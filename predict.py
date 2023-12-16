@@ -3,7 +3,7 @@ from openbabel import pybel
 import tensorflow as tf 
 import ResNet
 import argparse
-
+from tqdm import tqdm
 
 
 
@@ -47,7 +47,7 @@ def main():
             os.mkdir(o_path)
         model.save_pocket_mol2(mol,o_path,args.output_format)
     elif args.mode==1:
-        for name in os.listdir(args.input_path):
+        for name in tqdm(os.listdir(args.input_path)):
             mol_path=os.path.join(args.input_path,name)
             o_path=os.path.join(args.output_path,os.path.basename(mol_path))
             if not os.path.exists(o_path):
