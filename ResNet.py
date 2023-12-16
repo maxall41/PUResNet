@@ -12,6 +12,8 @@ import openbabel
 from data import *
 # import tfbio.net
 import numpy as np
+from scipy.spatial.distance import cdist
+
 class PUResNet(Model):
     def identity_block(self,input_tensor,filters,stage,block,layer=None):
         filter1,filter2,filter3=filters
@@ -168,17 +170,38 @@ class PUResNet(Model):
         step = np.array([1.0 / self.scale] * 3)
         return density, origin, step
     def save_pocket_mol2(self,mol,path,format,**pocket_kwargs):
+        dist_cutoff = 4.5
+
+        coords = np.array([a.coords for a in mol.atoms])
+        atom2residue = np.array([a.residue.idx for a in mol.atoms])
+        residue2atom = np.array([[a.idx - 1 for a in r.atoms]
+                                 for r in mol.residues])
+
         density, origin, step = self.pocket_density_from_mol(mol)
         pockets = self.get_pockets_segmentation(density, **pocket_kwargs)
-        i=0
+        pocket_atoms = []
         for pocket_label in range(1, pockets.max() + 1):
             indices = np.argwhere(pockets == pocket_label).astype('float32')
             indices *= step
             indices += origin
-            mol=openbabel.OBMol()
-            for idx in indices:
-                a=mol.NewAtom()
-                a.SetVector(float(idx[0]),float(idx[1]),float(idx[2]))
-            p_mol=pybel.Molecule(mol)
+            distance = cdist(coords, indices)
+            close_atoms = np.where((distance < dist_cutoff).any(axis=1))[0]
+            if len(close_atoms) == 0:
+                continue
+            residue_ids = np.unique(atom2residue[close_atoms])
+            close_atoms = np.concatenate(residue2atom[residue_ids])
+            pocket_atoms.append([int(idx) for idx in close_atoms])
+        i = 0
+        for pocket in pocket_atoms:
+            # copy molecule
+            pocket_mol = mol.clone
+            atoms_to_del = (set(range(len(pocket_mol.atoms)))
+                            - set(pocket))
+            pocket_mol.OBMol.BeginModify()
+            for aidx in sorted(atoms_to_del, reverse=True):
+                atom = pocket_mol.OBMol.GetAtom(aidx + 1)
+                pocket_mol.OBMol.DeleteAtom(atom)
+            pocket_mol.OBMol.EndModify()
+            p_mol=pybel.Molecule(pocket_mol)
             p_mol.write(format,path+'/pocket'+str(i)+'.'+format)
-            i+=1
+            i += 1
